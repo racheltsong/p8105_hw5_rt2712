@@ -1,0 +1,46 @@
+---
+title: "Homework 5"
+author: "Rachel Tsong"
+date: "November 7, 2018"
+output: html_document
+---
+
+# Problem 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
