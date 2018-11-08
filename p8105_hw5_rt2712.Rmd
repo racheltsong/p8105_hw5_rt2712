@@ -5,7 +5,7 @@ date: "9 November 2018"
 output: github_document
 ---
 
-# Problem 1
+## Problem 1
 ```{r}
 ## Load packages I'll use for problem 1
 library(tidyverse)
@@ -18,29 +18,31 @@ study_files = tibble(subject = list.files("./data")) %>%
   mutate(subject = str_c("./data/", subject))
 
 ## Make a dataframe using map to read files for each subject 
-study_data = study_files %>%
+study_raw = study_files %>%
   mutate(subject_data = map(study_files$subject, read_csv)) %>% 
   unnest()
+
+head(study_raw)
 ```
 
 After importing the files into a dataframe, I made a new dataframe containing the data from each file. The current dataframe contains the subject ID information and readings for each week in the study. Now, I need to tidy the data by creating variables for control/experimental, subject ID, and week.
 
 ```{r}
 ## Make a variable for "week" and change variable type, extract subject information from subject variable and create columns for "group" and "subject"
-study_data_tidy = study_data %>% 
+study_data = study_raw %>% 
   gather(key = "week", value = "value", week_1:week_8) %>%
   mutate(week = as.numeric((str_replace(week, "week_", ""))))  %>%
   mutate(subject = str_extract(subject, "[:lower:][:lower:][:lower:]_[:digit:][:digit:]")) %>%
   separate(subject, into = c("group", "subject_ID")) %>%
   mutate(group = recode(group, con = "control", exp = "experimental"))
 
-head(study_data_tidy)
+head(study_data)
   
 ```
 
 ```{r}
 ## Make a spaghetti plot showing change over time for each subject and facet by group
-study_data_tidy %>%
+study_data %>%
   ggplot(aes(x = week, y = value, color = subject_ID)) +
     geom_line() +
     facet_grid(~group) +
@@ -50,10 +52,47 @@ study_data_tidy %>%
 
 Starting at week 1, the values for the subjects in both groups were similar. However, over time, the values for the subjects in the experimental arm increased steadily over time, while the values for the subjects in the control arm remained relatively constant from week 1 to week 8.  
 
+## Problem 2 
 
+### Part 1: Import data, describe, and summarize homicides
+```{r}
+## Import dataset
+homicide_raw = read_csv(url("https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv"))
+```
 
+**Description of data**
+This dataset contains homicide information from `r n_distinct(homicide_raw$city)` large US cities across `r n_distinct(homicide_raw$state)` states from 2010 to 2016. In total, there are `r nrow(homicide_raw)` total victims included in the dataset. Information about the victim including the first and last name, sex, race, and age is included as well as information regarding the location of the homicide including city, state, and geographic coordinates. Lastly, there is a variable for the disposition of the case. This variable gives information about whether the case is open or closed and whether or not an arrest was made. 
 
+```{r}
+## Create a city_state variable and an unsolved variable
+homicide_data = homicide_raw %>%
+  mutate(city_state = str_c(city, state, sep = ", ")) %>%
+  mutate(unsolved = as.logical(ifelse(disposition != "Closed by arrest", 1, 0))) 
 
+## Determine number of unsolved homicides and total homicides for each city
+homicide_data %>%
+  group_by(city_state) %>%
+  summarize(unsolved = sum(unsolved), total = n()) %>%
+  arrange(-total) %>%
+  knitr::kable()
+```
+
+### Part 2:
+```{r}
+## Make a dataframe containing homicide information for only Baltimore
+baltimore_data = homicide_data %>%
+  filter(city_state == "Baltimore, MD") %>% 
+  group_by(city_state) %>%
+  summarize(unsolved = sum(unsolved), total = n()) 
+
+## Perform prop.test on "baltimore_data" and store as a list called "baltimore_prop_test"
+baltimore_prop_test = prop.test(baltimore_data$unsolved, baltimore_data$total)
+
+## Convert to tibble
+broom::tidy(baltimore_prop_test) %>%
+  select(estimate, conf.low, conf.high) %>% 
+  knitr::kable(digits = 3)
+```
 
 
 
