@@ -67,23 +67,30 @@ This dataset contains homicide information from `r n_distinct(homicide_raw$city)
 ## Create a city_state variable and an unsolved variable
 homicide_data = homicide_raw %>%
   mutate(city_state = str_c(city, state, sep = ", ")) %>%
-  mutate(unsolved = as.logical(ifelse(disposition != "Closed by arrest", 1, 0))) 
+  mutate(unsolved = ifelse(disposition != "Closed by arrest", TRUE, FALSE)) 
 
 ## Determine number of unsolved homicides and total homicides for each city
-homicide_data %>%
+homicide_proportion = homicide_data %>%
   group_by(city_state) %>%
   summarize(unsolved = sum(unsolved), total = n()) %>%
-  arrange(-total) %>%
-  knitr::kable()
+  arrange(-total)
+
+knitr::kable(homicide_proportion)
 ```
 
-### Part 2:
+Here I notice that I got a table with 51 cities instead of 50. From the Washington Post github repo, there are supposed to be 50 large cities surveyed. Tulsa, AL appears to be the culprit of the inconsistency, since there is not a city named Tulsa in Alabama. Before moving on, I'll remove this observation.
+
+```{r}
+homicide_proportion = homicide_proportion %>%
+  filter(city_state != "Tulsa, AL")
+```
+
+
+### Part 2: Proportion test for Baltimore
 ```{r}
 ## Make a dataframe containing homicide information for only Baltimore
-baltimore_data = homicide_data %>%
-  filter(city_state == "Baltimore, MD") %>% 
-  group_by(city_state) %>%
-  summarize(unsolved = sum(unsolved), total = n()) 
+baltimore_data = homicide_proportion %>%
+  filter(city_state == "Baltimore, MD") 
 
 ## Perform prop.test on "baltimore_data" and store as a list called "baltimore_prop_test"
 baltimore_prop_test = prop.test(baltimore_data$unsolved, baltimore_data$total)
@@ -92,6 +99,42 @@ baltimore_prop_test = prop.test(baltimore_data$unsolved, baltimore_data$total)
 broom::tidy(baltimore_prop_test) %>%
   select(estimate, conf.low, conf.high) %>% 
   knitr::kable(digits = 3)
+```
+
+### Part 3: Make a function to perform prop.test then for each city
+```{r}
+## Make a function to perform a proportion test for each city then create a tibble showing CIs and estimate
+prop_test_homicide = function(unsolved, total){
+  
+  x = prop.test(unsolved, total)
+  
+  broom::tidy(x) %>%
+    select(estimate, conf.low, conf.high)
+}
+```
+
+In this code chunk I made a function that performed a proportion test and then output a table showing the estimate and CI just like I did for Baltimore.
+
+```{r}
+## Use function on every city-state a unnest to create a tibble
+homicide_proportion = homicide_proportion %>%
+  mutate(prop_test = 
+           map2(homicide_proportion$unsolved, homicide_proportion$total, prop_test_homicide)) %>%
+  unnest()
+```
+
+I used my function on each city so that I have a data frame containing the proportions and CIs for each city.
+
+### Part 3: Make a visualization
+```{r fig.height = 7}
+homicide_proportion %>%
+  mutate(city_state = fct_reorder(city_state, estimate)) %>%
+  ggplot(aes(x = city_state, y = estimate)) +
+    geom_point() +
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) +
+    coord_flip() +
+    labs(x = "Proportion Estimate", y = "Location", title = "Estimated Proportion of Unsolved Homicides in US Cities") +
+    theme_bw() 
 ```
 
 
